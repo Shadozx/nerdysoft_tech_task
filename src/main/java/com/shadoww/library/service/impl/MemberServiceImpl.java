@@ -4,12 +4,13 @@ import com.shadoww.library.model.Member;
 import com.shadoww.library.repository.BorrowRepository;
 import com.shadoww.library.repository.MemberRepository;
 import com.shadoww.library.service.MemberService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -19,6 +20,7 @@ public class MemberServiceImpl implements MemberService {
     private final BorrowRepository borrowRepository;
 
     @Override
+    @Transactional
     public Member create(Member member) {
 
         validate(member);
@@ -27,12 +29,12 @@ public class MemberServiceImpl implements MemberService {
     }
 
     @Override
+    @Transactional
     public Member update(Long id, Member updated) {
 
         validate(updated);
 
-        Member existingMember = memberRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Member not found with id: " + id));
+        Member existingMember = findById(id);
 
         existingMember.setName(updated.getName());
 
@@ -40,10 +42,10 @@ public class MemberServiceImpl implements MemberService {
     }
 
     @Override
+    @Transactional
     public void delete(Long id) {
 
-        Member existingMember = memberRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Member not found with id: " + id));
+        Member existingMember = findById(id);
 
         if (!borrowRepository.findByMemberAndReturnedFalse(existingMember).isEmpty()) {
             throw new IllegalStateException("Cannot delete member with borrowed books");
@@ -53,13 +55,9 @@ public class MemberServiceImpl implements MemberService {
     }
 
     @Override
-    public Optional<Member> findById(Long id) {
-        return memberRepository.findById(id);
-    }
-
-    @Override
-    public Optional<Member> findByName(String name) {
-        return memberRepository.findByNameIgnoreCase(name);
+    public Member findById(Long id) {
+        return memberRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Member not found with id: " + id));
     }
 
     @Override
@@ -68,12 +66,12 @@ public class MemberServiceImpl implements MemberService {
     }
 
     private void validate(Member member) {
-        if(member == null) {
+        if(Objects.isNull(member)) {
             throw new IllegalArgumentException("Member cannot be null");
         }
 
         if(Objects.isNull(member.getName()) || member.getName().isEmpty()) {
-            throw new IllegalArgumentException("Member cannot be null");
+            throw new IllegalArgumentException("Member must have name");
         }
 
     }

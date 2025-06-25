@@ -4,7 +4,6 @@ package com.shadoww.library.service;
 import com.shadoww.library.model.Member;
 
 import java.util.List;
-import java.util.Optional;
 
 public interface MemberService {
 
@@ -14,9 +13,7 @@ public interface MemberService {
 
     void delete(Long id);
 
-    Optional<Member> findById(Long id);
-
-    Optional<Member> findByName(String name);
+    Member findById(Long id);
 
     List<Member> findAll();
 }

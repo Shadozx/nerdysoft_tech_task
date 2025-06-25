@@ -1,12 +1,14 @@
 package com.shadoww.library.service.impl;
 
+import com.shadoww.library.dto.BorrowCountDto;
 import com.shadoww.library.model.Book;
 import com.shadoww.library.model.Borrow;
 import com.shadoww.library.model.Member;
-import com.shadoww.library.repository.BookRepository;
 import com.shadoww.library.repository.BorrowRepository;
-import com.shadoww.library.repository.MemberRepository;
+import com.shadoww.library.service.BookService;
 import com.shadoww.library.service.BorrowService;
+import com.shadoww.library.service.MemberService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -14,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -22,8 +23,8 @@ import java.util.stream.Collectors;
 public class BorrowServiceImpl implements BorrowService {
 
     private final BorrowRepository borrowRepository;
-    private final MemberRepository memberRepository;
-    private final BookRepository bookRepository;
+    private final MemberService memberService;
+    private final BookService bookService;
 
     @Value("${borrow.limit}")
     private int borrowLimit;
@@ -31,11 +32,9 @@ public class BorrowServiceImpl implements BorrowService {
     @Override
     @Transactional
     public Borrow borrowBook(Long memberId, Long bookId) {
-        Member member = memberRepository.findById(memberId)
-                .orElseThrow(() -> new RuntimeException("Member not found"));
+        Member member = memberService.findById(memberId);
 
-        Book book = bookRepository.findById(bookId)
-                .orElseThrow(() -> new RuntimeException("Book not found"));
+        Book book = bookService.findById(bookId);
 
         int activeBorrows = borrowRepository.findByMemberAndReturnedFalse(member).size();
 
@@ -44,7 +43,7 @@ public class BorrowServiceImpl implements BorrowService {
         }
 
 
-        if (book.getAmount() == 0) {
+        if (book.getAmount() <= 0) {
             throw new IllegalStateException("Book is not available");
         }
 
@@ -60,7 +59,7 @@ public class BorrowServiceImpl implements BorrowService {
     @Transactional
     public Borrow returnBook(Long borrowId) {
         Borrow borrow = borrowRepository.findById(borrowId)
-                .orElseThrow(() -> new RuntimeException("Borrow not found"));
+                .orElseThrow(() -> new EntityNotFoundException("Borrow not found with id: " + borrowId));
 
         if (borrow.isReturned()) {
             throw new IllegalStateException("Already returned");
@@ -76,13 +75,11 @@ public class BorrowServiceImpl implements BorrowService {
     }
 
     @Override
-    @Transactional
     public List<Borrow> getBorrowsByMemberName(String name) {
         return borrowRepository.findByMember_NameIgnoreCase(name);
     }
 
     @Override
-    @Transactional
     public List<String> getAllDistinctBorrowedBookTitles() {
         return borrowRepository.findByReturnedFalse().stream()
                 .map(b -> b.getBook().getTitle())
@@ -91,15 +88,16 @@ public class BorrowServiceImpl implements BorrowService {
     }
 
     @Override
-    public List<Object[]> getAllBorrowedBookTitlesWithCount() {
-        Map<String, Long> grouped = borrowRepository.findByReturnedFalse().stream()
+    public List<BorrowCountDto> getAllBorrowedBookTitlesWithCount() {
+        return borrowRepository.findByReturnedFalse().stream()
                 .collect(Collectors.groupingBy(
                         b -> b.getBook().getTitle(),
                         Collectors.counting()
-                ));
-
-        return grouped.entrySet().stream()
-                .map(e -> new Object[]{e.getKey(), e.getValue()})
+                ))
+                .entrySet()
+                .stream()
+                .map(e -> new BorrowCountDto(e.getKey(), e.getValue()))
                 .toList();
+
     }
 }

@@ -1,5 +1,6 @@
 package com.shadoww.library.exception;
 
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,8 +35,8 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
     }
 
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<ExceptionEntity> handleRuntime(RuntimeException ex) {
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<ExceptionEntity> handle(EntityNotFoundException ex) {
         return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
@@ -44,8 +45,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
-    private ResponseEntity<ExceptionEntity> buildResponse(HttpStatus status, String message) {
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ExceptionEntity> handleException(Exception ex) {
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error");
+    }
 
+    private ResponseEntity<ExceptionEntity> buildResponse(HttpStatus status, String message) {
         ExceptionEntity exceptionEntity = new ExceptionEntity(LocalDateTime.now(), status.value(), status.getReasonPhrase(), message);
         return new ResponseEntity<>(exceptionEntity, status);
     }

@@ -5,7 +5,7 @@ import com.shadoww.library.model.Book;
 import com.shadoww.library.model.Borrow;
 import com.shadoww.library.repository.BookRepository;
 import com.shadoww.library.repository.BorrowRepository;
-import com.shadoww.library.repository.MemberRepository;
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
@@ -17,8 +17,9 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class BookServiceImplTests {
 
@@ -28,111 +29,136 @@ public class BookServiceImplTests {
     @Mock
     private BorrowRepository borrowRepository;
 
-    @Mock
-    private MemberRepository memberRepository;
-
     @InjectMocks
     private BookServiceImpl bookService;
 
+    private final Long bookId = 1L;
+    private final String title = "Clean Code";
+    private final String author = "Robert Martin";
+
     @BeforeEach
-    void init() {
+    void setup() {
         MockitoAnnotations.openMocks(this);
     }
 
     @Test
-    void createOrIncrement_shouldCreateNewBook_ifNotExists() {
-
+    void createOrIncrement_shouldCreateNewBook_whenNotExists() {
         Book book = new Book();
-        book.setTitle("Clean Code");
-        book.setAuthor("Robert Martin");
+        book.setTitle(title);
+        book.setAuthor(author);
+        book.setAmount(1);
 
-        when(bookRepository.findByTitleIgnoreCaseAndAuthorIgnoreCase("Clean Code", "Robert Martin"))
-                .thenReturn(Optional.empty());
-
-        when(bookRepository.save(any(Book.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(bookRepository.findByTitleIgnoreCaseAndAuthorIgnoreCase(title, author)).thenReturn(Optional.empty());
+        when(bookRepository.save(book)).thenReturn(book);
 
         Book result = bookService.createOrIncrement(book);
 
-        assertThat(result.getTitle()).isEqualTo("Clean Code");
-        assertThat(result.getAuthor()).isEqualTo("Robert Martin");
-        assertThat(result.getAmount()).isEqualTo(1);
-        verify(bookRepository).save(book);
+        assertThat(result).isEqualTo(book);
     }
 
     @Test
-    void createOrIncrement_shouldIncrementAmount_ifBookExists() {
-
+    void createOrIncrement_shouldIncrement_whenBookExists() {
         Book existing = new Book();
-        existing.setId(1L);
-        existing.setTitle("Clean Code");
-        existing.setAuthor("Robert Martin");
+        existing.setId(bookId);
+        existing.setTitle(title);
+        existing.setAuthor(author);
         existing.setAmount(2);
 
-        when(bookRepository.findByTitleIgnoreCaseAndAuthorIgnoreCase("Clean Code", "Robert Martin"))
-                .thenReturn(Optional.of(existing));
-
-        when(bookRepository.save(existing)).thenReturn(existing);
-
         Book input = new Book();
-        input.setTitle("Clean Code");
-        input.setAuthor("Robert Martin");
+        input.setTitle(title);
+        input.setAuthor(author);
+
+        when(bookRepository.findByTitleIgnoreCaseAndAuthorIgnoreCase(title, author)).thenReturn(Optional.of(existing));
+        when(bookRepository.save(existing)).thenReturn(existing);
 
         Book result = bookService.createOrIncrement(input);
 
         assertThat(result.getAmount()).isEqualTo(3);
-        verify(bookRepository).save(existing);
     }
 
     @Test
-    void update_shouldUpdateExistingBook() {
-        long bookId = 10L;
+    void createOrIncrement_shouldThrow_whenBookIsNull() {
+        assertThrows(IllegalArgumentException.class, () -> bookService.createOrIncrement(null));
+    }
 
+    @Test
+    void createOrIncrement_shouldThrow_whenTitleIsMissing() {
+        Book book = new Book();
+        book.setAuthor(author);
+        book.setAmount(1);
+
+        assertThrows(IllegalArgumentException.class, () -> bookService.createOrIncrement(book));
+    }
+
+    @Test
+    void createOrIncrement_shouldThrow_whenAuthorIsMissing() {
+        Book book = new Book();
+        book.setTitle(title);
+        book.setAmount(1);
+
+        assertThrows(IllegalArgumentException.class, () -> bookService.createOrIncrement(book));
+    }
+
+    @Test
+    void createOrIncrement_shouldThrow_whenAmountNegative() {
+        Book book = new Book();
+        book.setTitle(title);
+        book.setAuthor(author);
+        book.setAmount(-1);
+
+        assertThrows(IllegalArgumentException.class, () -> bookService.createOrIncrement(book));
+    }
+
+    // -------- update --------
+
+    @Test
+    void update_shouldUpdate_whenValid() {
         Book existing = new Book();
         existing.setId(bookId);
-        existing.setTitle("Old Title");
-        existing.setAuthor("Old Author");
-        existing.setAmount(5);
+        existing.setTitle("Old");
+        existing.setAuthor("Old");
+        existing.setAmount(1);
 
         Book updated = new Book();
-        updated.setTitle("New Title");
-        updated.setAuthor("New Author");
-        updated.setAmount(42);
+        updated.setTitle(title);
+        updated.setAuthor(author);
+        updated.setAmount(5);
 
         when(bookRepository.findById(bookId)).thenReturn(Optional.of(existing));
         when(bookRepository.save(existing)).thenReturn(existing);
 
         Book result = bookService.update(bookId, updated);
 
-        assertThat(result.getTitle()).isEqualTo("New Title");
-        assertThat(result.getAuthor()).isEqualTo("New Author");
-        assertThat(result.getAmount()).isEqualTo(42);
-        verify(bookRepository).save(existing);
+        assertThat(result.getTitle()).isEqualTo(title);
+        assertThat(result.getAuthor()).isEqualTo(author);
+        assertThat(result.getAmount()).isEqualTo(5);
     }
 
     @Test
     void update_shouldThrow_whenBookNotFound() {
-        long bookId = 123L;
         when(bookRepository.findById(bookId)).thenReturn(Optional.empty());
 
         Book updated = new Book();
-        updated.setTitle("X");
-        updated.setAuthor("Y");
-        updated.setAmount(10);
+        updated.setTitle(title);
+        updated.setAuthor(author);
+        updated.setAmount(1);
 
-        assertThatThrownBy(() -> bookService.update(bookId, updated))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Book not found");
+        assertThrows(EntityNotFoundException.class, () -> bookService.update(bookId, updated));
     }
 
     @Test
-    void delete_shouldDeleteBook_ifNotBorrowed() {
-        long bookId = 99L;
+    void update_shouldThrow_whenInvalidBook() {
+        Book updated = new Book(); // no title, author, amount
 
+        assertThrows(IllegalArgumentException.class, () -> bookService.update(bookId, updated));
+    }
+
+    // -------- delete --------
+
+    @Test
+    void delete_shouldDelete_whenNotBorrowed() {
         Book book = new Book();
         book.setId(bookId);
-        book.setTitle("Book");
-        book.setAuthor("Author");
-        book.setAmount(1);
 
         when(bookRepository.findById(bookId)).thenReturn(Optional.of(book));
         when(borrowRepository.findByBookAndReturnedFalse(book)).thenReturn(Collections.emptyList());
@@ -143,45 +169,52 @@ public class BookServiceImplTests {
     }
 
     @Test
-    void delete_shouldThrow_ifBookIsBorrowed() {
-        long bookId = 77L;
+    void delete_shouldThrow_whenBorrowed() {
         Book book = new Book();
         book.setId(bookId);
-        book.setTitle("Book");
-        book.setAuthor("Author");
 
         when(bookRepository.findById(bookId)).thenReturn(Optional.of(book));
-        when(borrowRepository.findByBookAndReturnedFalse(book)).thenReturn(List.of(mock(Borrow.class)));
+        when(borrowRepository.findByBookAndReturnedFalse(book)).thenReturn(List.of(new Borrow()));
 
-        assertThatThrownBy(() -> bookService.delete(bookId))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("currently borrowed");
+        assertThrows(IllegalStateException.class, () -> bookService.delete(bookId));
     }
 
     @Test
-    void findById_shouldReturnBook_ifExists() {
-        long bookId = 1L;
-        String title = "Java";
+    void delete_shouldThrow_whenNotFound() {
+        when(bookRepository.findById(bookId)).thenReturn(Optional.empty());
 
+        assertThrows(EntityNotFoundException.class, () -> bookService.delete(bookId));
+    }
+
+    // -------- findById & findAll --------
+
+    @Test
+    void findById_shouldReturn_whenExists() {
         Book book = new Book();
         book.setId(bookId);
-        book.setTitle(title);
-        book.setAuthor("Someone");
 
         when(bookRepository.findById(bookId)).thenReturn(Optional.of(book));
 
-        Optional<Book> result = bookService.findById(bookId);
+        Book result = bookService.findById(bookId);
 
-        assertThat(result).isPresent();
-        assertThat(result.get().getTitle()).isEqualTo(title);
+        assertThat(result).isEqualTo(book);
     }
 
     @Test
-    void findAll_shouldReturnListOfBooks() {
-        when(bookRepository.findAll()).thenReturn(List.of(new Book(), new Book()));
+    void findById_shouldThrow_whenNotFound() {
+        when(bookRepository.findById(bookId)).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> bookService.findById(bookId));
+    }
+
+    @Test
+    void findAll_shouldReturnAllBooks() {
+        List<Book> books = List.of(new Book(), new Book());
+
+        when(bookRepository.findAll()).thenReturn(books);
 
         List<Book> result = bookService.findAll();
 
-        assertThat(result).hasSize(2);
+        assertThat(result).isEqualTo(books);
     }
 }

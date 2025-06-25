@@ -46,9 +46,9 @@ public class BookController {
     public ResponseEntity<BookResponseDto> getById(
             @PathVariable Long id
     ) {
-        return bookService.findById(id)
-                .map(book -> ResponseEntity.ok(toDto(book)))
-                .orElse(ResponseEntity.notFound().build());
+        Book found = bookService.findById(id);
+
+        return ResponseEntity.ok(toDto(found));
     }
 
     @PutMapping("/{id}")

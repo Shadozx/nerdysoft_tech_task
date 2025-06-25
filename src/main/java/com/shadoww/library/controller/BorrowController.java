@@ -1,5 +1,6 @@
 package com.shadoww.library.controller;
 
+import com.shadoww.library.dto.BorrowCountDto;
 import com.shadoww.library.dto.BorrowRequestDto;
 import com.shadoww.library.dto.BorrowResponseDto;
 import com.shadoww.library.dto.BorrowedBookDto;
@@ -8,11 +9,11 @@ import com.shadoww.library.service.BorrowService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/borrows")
@@ -24,14 +25,18 @@ public class BorrowController {
 
     @PostMapping
     @Operation(summary = "Borrow a book")
-    public ResponseEntity<BorrowResponseDto> borrowBook(@RequestBody @Valid BorrowRequestDto dto) {
+    public ResponseEntity<BorrowResponseDto> borrowBook(
+            @RequestBody @Valid BorrowRequestDto dto
+    ) {
         Borrow borrow = borrowService.borrowBook(dto.memberId(), dto.bookId());
         return new ResponseEntity<>(toDto(borrow), HttpStatus.CREATED);
     }
 
     @PostMapping("/{borrowId}/return")
     @Operation(summary = "Return a borrowed book")
-    public ResponseEntity<BorrowResponseDto> returnBook(@PathVariable Long borrowId) {
+    public ResponseEntity<BorrowResponseDto> returnBook(
+            @PathVariable Long borrowId
+    ) {
         Borrow borrow = borrowService.returnBook(borrowId);
 
         return ResponseEntity.ok(toDto(borrow));
@@ -39,7 +44,9 @@ public class BorrowController {
 
     @GetMapping("/by-member")
     @Operation(summary = "Get all books borrowed by a specific member (by name)")
-    public ResponseEntity<List<BorrowedBookDto>> getByMemberName(@RequestParam String name) {
+    public ResponseEntity<List<BorrowedBookDto>> getByMemberName(
+            @RequestParam String name
+    ) {
         return ResponseEntity.ok(borrowService.getBorrowsByMemberName(name)
                 .stream()
                 .map((borrow -> new BorrowedBookDto(
@@ -59,14 +66,11 @@ public class BorrowController {
         return ResponseEntity.ok(borrowService.getAllDistinctBorrowedBookTitles());
     }
 
-    @GetMapping("/distinct-names-with-count")
+    @GetMapping("/distinct-names/count")
     @Operation(summary = "Get all distinct borrowed book titles with how many copies were borrowed")
-    public ResponseEntity<List<Map<String, Object>>> getDistinctTitlesWithCount() {
-        List<Object[]> raw = borrowService.getAllBorrowedBookTitlesWithCount();
-        List<Map<String, Object>> result = raw.stream()
-                .map(obj -> Map.of("title", obj[0], "count", obj[1]))
-                .toList();
-        return ResponseEntity.ok(result);
+    public ResponseEntity<List<BorrowCountDto>> getDistinctTitlesWithCount() {
+        return ResponseEntity.ok(borrowService.getAllBorrowedBookTitlesWithCount());
+
     }
 
     private BorrowResponseDto toDto(Borrow borrow) {

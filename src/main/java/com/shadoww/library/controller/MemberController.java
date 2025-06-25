@@ -24,7 +24,9 @@ public class MemberController {
 
     @PostMapping
     @Operation(summary = "Create new member")
-    public ResponseEntity<MemberResponseDto> create(@RequestBody @Valid MemberRequestDto dto) {
+    public ResponseEntity<MemberResponseDto> create(
+            @RequestBody @Valid MemberRequestDto dto
+    ) {
         Member saved = memberService.create(toEntity(dto));
         return new ResponseEntity<>(toDto(saved), HttpStatus.CREATED);
     }
@@ -39,28 +41,33 @@ public class MemberController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get member by ID")
-    public ResponseEntity<MemberResponseDto> getById(@PathVariable Long id) {
-        return memberService.findById(id)
-                .map(m -> ResponseEntity.ok(toDto(m)))
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<MemberResponseDto> getById(
+            @PathVariable Long id
+    ) {
+        Member found = memberService.findById(id);
+
+        return ResponseEntity.ok(toDto(found));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update member by ID")
-    public ResponseEntity<MemberResponseDto> update(@PathVariable Long id,
-                                                    @RequestBody @Valid MemberRequestDto dto) {
+    public ResponseEntity<MemberResponseDto> update(
+            @PathVariable Long id, @RequestBody @Valid MemberRequestDto dto
+    ) {
         Member updated = memberService.update(id, toEntity(dto));
         return ResponseEntity.ok(toDto(updated));
     }
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete member if no borrowed books")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(
+            @PathVariable Long id
+    ) {
         memberService.delete(id);
         return ResponseEntity.noContent().build();
     }
 
-    // === Mapper methods ===
+    // methods for converting from DTO to Entity and vice versa
 
     private Member toEntity(MemberRequestDto dto) {
         Member member = new Member();

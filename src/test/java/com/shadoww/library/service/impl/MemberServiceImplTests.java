@@ -4,95 +4,116 @@ import com.shadoww.library.model.Borrow;
 import com.shadoww.library.model.Member;
 import com.shadoww.library.repository.BorrowRepository;
 import com.shadoww.library.repository.MemberRepository;
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import static org.mockito.ArgumentMatchers.any;
-
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class MemberServiceImplTests {
 
     @Mock
     private MemberRepository memberRepository;
-
     @Mock
     private BorrowRepository borrowRepository;
 
-    @InjectMocks
     private MemberServiceImpl memberService;
 
-    private final long memberId = 1L;
-    private final String memberName = "John Doe";
+    private final Long memberId = 1L;
+    private final String name = "John";
 
     @BeforeEach
     void setup() {
         MockitoAnnotations.openMocks(this);
+        memberService = new MemberServiceImpl(memberRepository, borrowRepository);
     }
 
-    @Test
-    void create_shouldSaveNewMember() {
-        Member member = new Member();
-        member.setName(memberName);
+    // === create ===
 
-        when(memberRepository.save(any(Member.class))).thenAnswer(inv -> {
-            Member m = inv.getArgument(0);
-            m.setId(memberId);
-            m.setMembershipDate(LocalDateTime.now());
-            return m;
-        });
+    @Test
+    void create_shouldSucceed_whenValid() {
+        Member member = new Member();
+        member.setName(name);
+
+        when(memberRepository.save(member)).thenReturn(member);
 
         Member result = memberService.create(member);
 
-        assertThat(result.getId()).isEqualTo(memberId);
-        assertThat(result.getName()).isEqualTo(memberName);
-        assertThat(result.getMembershipDate()).isNotNull();
+        assertThat(result).isEqualTo(member);
     }
 
     @Test
-    void update_shouldChangeMemberName_whenFound() {
+    void create_shouldThrow_whenNull() {
+        assertThrows(IllegalArgumentException.class, () -> memberService.create(null));
+    }
+
+    @Test
+    void create_shouldThrow_whenNameMissing() {
+        Member member = new Member(); // name = null
+
+        assertThrows(IllegalArgumentException.class, () -> memberService.create(member));
+    }
+
+    @Test
+    void create_shouldThrow_whenNameEmpty() {
+        Member member = new Member();
+        member.setName("");
+
+        assertThrows(IllegalArgumentException.class, () -> memberService.create(member));
+    }
+
+    // === update ===
+
+    @Test
+    void update_shouldSucceed_whenValid() {
         Member existing = new Member();
         existing.setId(memberId);
         existing.setName("Old Name");
 
         Member updated = new Member();
-        updated.setName("New Name");
+        updated.setName(name);
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(existing));
         when(memberRepository.save(existing)).thenReturn(existing);
 
         Member result = memberService.update(memberId, updated);
 
-        assertThat(result.getName()).isEqualTo("New Name");
-        verify(memberRepository).save(existing);
+        assertThat(result.getName()).isEqualTo(name);
     }
 
     @Test
-    void update_shouldThrow_whenNotFound() {
+    void update_shouldThrow_whenMemberNotFound() {
         when(memberRepository.findById(memberId)).thenReturn(Optional.empty());
 
         Member updated = new Member();
-        updated.setName("X");
+        updated.setName(name);
 
-        assertThatThrownBy(() -> memberService.update(memberId, updated))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Member not found");
+        assertThrows(EntityNotFoundException.class, () -> memberService.update(memberId, updated));
     }
 
     @Test
-    void delete_shouldRemoveMember_ifNotBorrowing() {
+    void update_shouldThrow_whenInvalidMember() {
+        Member invalid = new Member(); // no name
+
+        assertThrows(IllegalArgumentException.class, () -> memberService.update(memberId, invalid));
+    }
+
+    // === delete ===
+
+    @Test
+    void delete_shouldSucceed_whenNoBorrows() {
         Member member = new Member();
         member.setId(memberId);
-        member.setName(memberName);
+        member.setName(name);
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
         when(borrowRepository.findByMemberAndReturnedFalse(member)).thenReturn(Collections.emptyList());
@@ -103,53 +124,52 @@ public class MemberServiceImplTests {
     }
 
     @Test
-    void delete_shouldThrow_ifBorrowingBooks() {
+    void delete_shouldThrow_whenHasActiveBorrows() {
         Member member = new Member();
         member.setId(memberId);
-        member.setName(memberName);
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
         when(borrowRepository.findByMemberAndReturnedFalse(member)).thenReturn(List.of(new Borrow()));
 
-        assertThatThrownBy(() -> memberService.delete(memberId))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("borrowed books");
+        assertThrows(IllegalStateException.class, () -> memberService.delete(memberId));
     }
 
     @Test
-    void findById_shouldReturnMember() {
+    void delete_shouldThrow_whenMemberNotFound() {
+        when(memberRepository.findById(memberId)).thenReturn(Optional.empty());
+
+        assertThrows(EntityNotFoundException.class, () -> memberService.delete(memberId));
+    }
+
+    // === findById / findAll ===
+
+    @Test
+    void findById_shouldReturn_whenExists() {
         Member member = new Member();
         member.setId(memberId);
-        member.setName(memberName);
 
         when(memberRepository.findById(memberId)).thenReturn(Optional.of(member));
 
-        Optional<Member> result = memberService.findById(memberId);
+        Member result = memberService.findById(memberId);
 
-        assertThat(result).isPresent();
-        assertThat(result.get().getName()).isEqualTo(memberName);
+        assertThat(result).isEqualTo(member);
     }
 
     @Test
-    void findByName_shouldReturnMember() {
-        Member member = new Member();
-        member.setId(memberId);
-        member.setName(memberName);
+    void findById_shouldThrow_whenNotFound() {
+        when(memberRepository.findById(memberId)).thenReturn(Optional.empty());
 
-        when(memberRepository.findByNameIgnoreCase(memberName)).thenReturn(Optional.of(member));
-
-        Optional<Member> result = memberService.findByName(memberName);
-
-        assertThat(result).isPresent();
-        assertThat(result.get().getId()).isEqualTo(memberId);
+        assertThrows(EntityNotFoundException.class, () -> memberService.findById(memberId));
     }
 
     @Test
     void findAll_shouldReturnList() {
-        when(memberRepository.findAll()).thenReturn(List.of(new Member(), new Member()));
+        List<Member> members = List.of(new Member(), new Member());
+
+        when(memberRepository.findAll()).thenReturn(members);
 
         List<Member> result = memberService.findAll();
 
-        assertThat(result).hasSize(2);
+        assertThat(result).isEqualTo(members);
     }
 }

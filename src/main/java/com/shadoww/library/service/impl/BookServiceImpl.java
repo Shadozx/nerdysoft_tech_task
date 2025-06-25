@@ -1,18 +1,16 @@
 package com.shadoww.library.service.impl;
 
 import com.shadoww.library.model.Book;
-import com.shadoww.library.model.Member;
 import com.shadoww.library.repository.BookRepository;
 import com.shadoww.library.repository.BorrowRepository;
 import com.shadoww.library.service.BookService;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -40,8 +38,7 @@ public class BookServiceImpl implements BookService {
     public Book update(Long id, Book updatedBook) {
         validate(updatedBook);
 
-        Book existing = bookRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Book not found with id: " + id));
+        Book existing = findById(id);
 
         existing.setTitle(updatedBook.getTitle());
         existing.setAuthor(updatedBook.getAuthor());
@@ -53,8 +50,7 @@ public class BookServiceImpl implements BookService {
     @Override
     @Transactional
     public void delete(Long id) {
-        Book book = bookRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Book not found with id: " + id));
+        Book book = findById(id);
 
         boolean isBorrowed = !borrowRepository.findByBookAndReturnedFalse(book).isEmpty();
 
@@ -66,8 +62,9 @@ public class BookServiceImpl implements BookService {
     }
 
     @Override
-    public Optional<Book> findById(Long id) {
-        return bookRepository.findById(id);
+    public Book findById(Long id) {
+        return bookRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Book not found with id: " + id));
     }
 
     @Override
